@@ -3,11 +3,12 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import click
+import questionary
 from rich.console import Console
 
 from arxgent.agents import research_papers, summarize_paper
-from arxgent.config import load_config, save_config, config_exists
-from arxgent.profile import Profile, load_profile, profile_exists, run_setup_wizard
+from arxgent.config import load_config, save_config
+from arxgent.profile import PaperEntry, load_profile, profile_exists, run_setup_wizard, save_profile
 from arxgent.storage import save_paper_md
 
 console = Console()
@@ -43,11 +44,11 @@ def setup(model: str | None) -> None:
 
 
 @cli.command()
-@click.option("--date", type=click.Choice(["today", "last-week", "custom"]), default="last-week")
+@click.option("--date", "date_opt", type=click.Choice(["today", "last-week", "custom"]), default="last-week")
 @click.option("--start", default=None, help="Start date (YYYY-MM-DD) for --date=custom")
 @click.option("--end", default=None, help="End date (YYYY-MM-DD) for --date=custom")
 @click.option("--skip-review", is_flag=True, default=False, help="Skip the review prompt")
-def run(date: str, start: str | None, end: str | None, skip_review: bool) -> None:
+def run(date_opt: str, start: str | None, end: str | None, skip_review: bool) -> None:
     """Search, summarize, and save papers from arxiv."""
     if not profile_exists():
         console.print("[yellow]No profile found. Running setup first...[/yellow]")
@@ -61,9 +62,9 @@ def run(date: str, start: str | None, end: str | None, skip_review: bool) -> Non
     cfg = load_config()
     today = date.today()
 
-    if date == "today":
+    if date_opt == "today":
         start_date = end_date = today.isoformat()
-    elif date == "last-week":
+    elif date_opt == "last-week":
         end_date = today.isoformat()
         start_date = (today - timedelta(days=7)).isoformat()
     else:
@@ -88,8 +89,7 @@ def run(date: str, start: str | None, end: str | None, skip_review: bool) -> Non
     console.print(f"\n[bold]Found {len(papers)} paper(s). Summarizing...[/bold]")
 
     for i, paper in enumerate(papers, 1):
-        status_msg = f"[bold green]Summarizing paper {i}/{len(papers)}..."
-        with console.status(status_msg):
+        with console.status(f"[bold green]Summarizing paper {i}/{len(papers)}..."):
             summary = summarize_paper(
                 paper=paper,
                 profile=profile,
@@ -101,19 +101,20 @@ def run(date: str, start: str | None, end: str | None, skip_review: bool) -> Non
         console.print(f"       Saved: {filepath}")
 
     profile.history.extend(
-        [
-            {
-                "arxiv_id": p.arxiv_id,
-                "title": p.title,
-                "date_delivered": today.isoformat(),
-            }
-            for p in papers
-        ]
+        PaperEntry(
+            arxiv_id=p.arxiv_id,
+            title=p.title,
+            date_delivered=today.isoformat(),
+        )
+        for p in papers
     )
-    from arxgent.profile import save_profile
     save_profile(profile)
 
     console.print(f"\n[green]Done! Papers saved to {cfg.output_dir}[/green]")
+
+    should_review = not (skip_review or cfg.skip_review)
+    if should_review and profile.history:
+        _prompt_review()
 
 
 @cli.command()
@@ -128,7 +129,7 @@ def review() -> None:
         console.print("[yellow]No papers have been delivered yet. Run [bold]arxgent run[/bold] first.[/yellow]")
         return
 
-    console.print("[dim]Review mode coming in a future step.[/dim]")
+    _prompt_review()
 
 
 @cli.command()
@@ -158,6 +159,58 @@ def status() -> None:
     else:
         console.print("[yellow]No papers delivered yet.[/yellow]")
     console.print("")
+
+
+def _prompt_review() -> None:
+    profile = load_profile()
+    unread = [p for p in profile.history if not p.read]
+    if not unread:
+        console.print("[green]All papers reviewed![/green]")
+        return
+
+    for entry in unread:
+        console.print(f"\n[bold]Paper:[/bold] {entry.title} ({entry.arxiv_id})")
+        console.print(f"[dim]Delivered: {entry.date_delivered}[/dim]")
+
+        did_read = questionary.confirm("Did you read this paper?", default=False).ask()
+        if did_read is None:
+            return
+
+        entry.read = did_read
+
+        if did_read:
+            liked = questionary.select(
+                "What did you think of it?",
+                choices=["Liked it", "Disliked it", "Neutral"],
+            ).ask()
+            if liked is None:
+                return
+
+            if liked == "Liked it":
+                entry.liked = True
+            elif liked == "Disliked it":
+                entry.liked = False
+            else:
+                entry.liked = None
+
+            feedback = questionary.text(
+                "Any specific feedback? (optional)",
+                default="",
+                instruction="(press Enter to skip)",
+            ).ask() or ""
+            entry.feedback = feedback
+        else:
+            entry.liked = None
+            entry.feedback = ""
+
+        save_profile(profile)
+        console.print("[green]Feedback saved![/green]")
+
+    remaining = sum(1 for p in profile.history if not p.read)
+    if remaining:
+        console.print(f"[yellow]{remaining} paper(s) remaining to review.[/yellow]")
+    else:
+        console.print("[green]All caught up![/green]")
 
 
 if __name__ == "__main__":
