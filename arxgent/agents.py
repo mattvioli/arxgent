@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import os
 import re
 from datetime import date, datetime, timedelta
 from typing import List
+
+os.environ["LITELLM_LOG"] = "ERROR"
 
 import arxiv
 import litellm
