@@ -14,6 +14,7 @@ from arxgent.config import CONFIG_DIR, PROFILE_FILE
 class PaperEntry(BaseModel):
     arxiv_id: str
     title: str
+    authors: List[str] = Field(default_factory=list)
     date_delivered: str
     read: bool = False
     liked: Optional[bool] = None

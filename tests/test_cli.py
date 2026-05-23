@@ -91,6 +91,7 @@ class TestReviewCommand:
 
         fake = FakeReviewQuestionary([True, "Liked it", "Great paper about transformers"])
         monkeypatch.setattr("arxgent.cli.questionary", fake)
+        monkeypatch.setattr("arxgent.cli._offer_interest_refinement", lambda profile: None)
 
         result = runner.invoke(cli, ["review"])
         assert result.exit_code == 0
@@ -152,6 +153,7 @@ class TestReviewCommand:
 
         fake = FakeReviewQuestionary([True, "Liked it", "Good", True, "Disliked it", "Bad"])
         monkeypatch.setattr("arxgent.cli.questionary", fake)
+        monkeypatch.setattr("arxgent.cli._offer_interest_refinement", lambda profile: None)
 
         result = runner.invoke(cli, ["review"])
         assert result.exit_code == 0
@@ -163,6 +165,73 @@ class TestReviewCommand:
         assert profile.history[0].liked is True
         assert profile.history[1].read is True
         assert profile.history[1].liked is False
+
+
+class TestInterestRefinement:
+    def test_offered_after_review_with_liked_papers(self, runner: CliRunner, tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        save_profile(Profile(
+            topics={"CS": ["cs.LG"]},
+            interest="ML",
+            history=[PaperEntry(arxiv_id="1706.03762", title="Attention", date_delivered="2026-05-20")],
+        ))
+
+        fake = FakeReviewQuestionary([True, "Liked it", "transformers", True])
+        monkeypatch.setattr("arxgent.cli.questionary", fake)
+        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, model: "Interest in transformer architectures")
+
+        result = runner.invoke(cli, ["review"])
+        assert result.exit_code == 0
+        assert "Interest update available" in result.output
+        assert "Interest in transformer architectures" in result.output
+
+    def test_skipped_when_no_change(self, runner: CliRunner, tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        save_profile(Profile(
+            topics={"CS": ["cs.LG"]},
+            interest="ML",
+            history=[PaperEntry(arxiv_id="1706.03762", title="Attention", date_delivered="2026-05-20")],
+        ))
+
+        fake = FakeReviewQuestionary([True, "Liked it", "transformers"])
+        monkeypatch.setattr("arxgent.cli.questionary", fake)
+        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, model: profile.interest)
+
+        result = runner.invoke(cli, ["review"])
+        assert result.exit_code == 0
+        assert "Interest update available" not in result.output
+
+    def test_applies_refined_interest(self, runner: CliRunner, tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        save_profile(Profile(
+            topics={"CS": ["cs.LG"]},
+            interest="ML",
+            history=[PaperEntry(arxiv_id="1706.03762", title="Attention", date_delivered="2026-05-20")],
+        ))
+
+        fake = FakeReviewQuestionary([True, "Liked it", "transformers", True])
+        monkeypatch.setattr("arxgent.cli.questionary", fake)
+        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, model: "Interest in transformer architectures")
+
+        runner.invoke(cli, ["review"])
+
+        from arxgent.profile import load_profile
+        profile = load_profile()
+        assert profile.interest == "Interest in transformer architectures"
+
+    def test_declines_refined_interest(self, runner: CliRunner, tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        save_profile(Profile(
+            topics={"CS": ["cs.LG"]},
+            interest="ML",
+            history=[PaperEntry(arxiv_id="1706.03762", title="Attention", date_delivered="2026-05-20")],
+        ))
+
+        fake = FakeReviewQuestionary([True, "Liked it", "transformers", False])
+        monkeypatch.setattr("arxgent.cli.questionary", fake)
+        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, model: "Interest in transformer architectures")
+
+        runner.invoke(cli, ["review"])
+
+        from arxgent.profile import load_profile
+        profile = load_profile()
+        assert profile.interest == "ML"
 
 
 class TestReviewIntegration:

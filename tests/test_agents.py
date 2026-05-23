@@ -10,7 +10,10 @@ from arxgent.agents import (
     _build_query,
     _dates_to_arxiv,
     _extract_disliked_keywords,
+    _extract_liked_authors,
     _extract_liked_keywords,
+    _extract_terms,
+    refine_interest,
     research_papers,
     summarize_paper,
 )
@@ -92,6 +95,63 @@ class TestFeedbackExtraction:
         )
         query = _build_query(profile, "2026-05-17", "2026-05-24")
         assert "ANDNOT+all:reinforcement" in query
+
+    def test_keyword_dedup_by_frequency(self) -> None:
+        profile = Profile(history=[
+            PaperEntry(arxiv_id="1", title="A", date_delivered="2026-05-23", read=True, liked=True, feedback="great transformers paper"),
+            PaperEntry(arxiv_id="2", title="B", date_delivered="2026-05-24", read=True, liked=True, feedback="transformers are amazing"),
+        ])
+        keywords = _extract_liked_keywords(profile)
+        assert keywords[:2] == ["transformers", "amazing"]
+        assert len(keywords) <= 5
+
+    def test_keyword_max_five(self) -> None:
+        profile = Profile(history=[
+            PaperEntry(arxiv_id=str(i), title=str(i), date_delivered="2026-05-23", read=True, liked=True, feedback=f"keyword{i}")
+            for i in range(10)
+        ])
+        keywords = _extract_liked_keywords(profile)
+        assert len(keywords) == 5
+
+    def test_liked_authors_empty_when_no_authors(self) -> None:
+        profile = Profile(history=[
+            PaperEntry(arxiv_id="1", title="A", date_delivered="2026-05-23", read=True, liked=True, feedback="good"),
+        ])
+        assert _extract_liked_authors(profile) == []
+
+    def test_liked_authors_extracted(self) -> None:
+        profile = Profile(history=[
+            PaperEntry(arxiv_id="1", title="A", authors=["Jane Smith"], date_delivered="2026-05-23", read=True, liked=True, feedback="great"),
+            PaperEntry(arxiv_id="2", title="B", authors=["Jane Smith"], date_delivered="2026-05-24", read=True, liked=True, feedback="nice"),
+        ])
+        authors = _extract_liked_authors(profile)
+        assert "Jane Smith" in authors
+
+    def test_liked_authors_skipped_from_unliked(self) -> None:
+        profile = Profile(history=[
+            PaperEntry(arxiv_id="1", title="A", authors=["Bob"], date_delivered="2026-05-23", read=True, liked=False, feedback="bad"),
+        ])
+        assert _extract_liked_authors(profile) == []
+
+    def test_author_boost_in_query(self) -> None:
+        profile = Profile(
+            topics={"CS": ["cs.LG"]},
+            history=[
+                PaperEntry(arxiv_id="1", title="A", authors=["Jane Smith"], date_delivered="2026-05-23", read=True, liked=True, feedback="good"),
+            ],
+        )
+        query = _build_query(profile, "2026-05-17", "2026-05-24")
+        assert "au:Jane_Smith" in query
+
+    def test_arxiv_escape_spaces(self) -> None:
+        profile = Profile(
+            topics={"CS": ["cs.LG"]},
+            history=[
+                PaperEntry(arxiv_id="1", title="A", authors=["Multi Word Author"], date_delivered="2026-05-23", read=True, liked=True, feedback="good"),
+            ],
+        )
+        query = _build_query(profile, "2026-05-17", "2026-05-24")
+        assert "au:Multi_Word_Author" in query
 
 
 class TestPaperModel:
@@ -176,6 +236,61 @@ class TestResearchPapers:
             )
 
         assert papers == []
+
+
+class TestRefineInterest:
+    def test_returns_current_if_no_feedback(self) -> None:
+        profile = Profile(interest="machine learning")
+        result = refine_interest(profile, model="gpt-4o-mini")
+        assert result == "machine learning"
+
+    def test_calls_litellm_with_context(self) -> None:
+        profile = Profile(
+            interest="deep learning",
+            history=[
+                PaperEntry(arxiv_id="1", title="Attention", date_delivered="2026-05-23", read=True, liked=True, feedback="transformers are great"),
+            ],
+        )
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "Interest in transformer architectures"
+        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+            result = refine_interest(profile, model="gpt-4o-mini")
+        assert "transformer" in result
+
+    def test_uses_current_interest_as_fallback_on_empty_llm(self) -> None:
+        profile = Profile(
+            interest="nlp",
+            history=[
+                PaperEntry(arxiv_id="1", title="A", date_delivered="2026-05-23", read=True, liked=True, feedback="great nlp paper"),
+            ],
+        )
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = ""
+        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+            result = refine_interest(profile, model="gpt-4o-mini")
+        assert result == "nlp"
+
+    def test_excludes_disliked_context(self) -> None:
+        profile = Profile(
+            interest="AI",
+            history=[
+                PaperEntry(arxiv_id="1", title="A", date_delivered="2026-05-23", read=True, liked=False, feedback="too much RL"),
+                PaperEntry(arxiv_id="2", title="B", date_delivered="2026-05-23", read=True, liked=True, feedback="great LLM paper"),
+            ],
+        )
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "Interest in LLMs, not RL"
+        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+            result = refine_interest(profile, model="gpt-4o-mini")
+        assert "LLM" in result
+
+    def test_liked_papers_param_overrides_history(self) -> None:
+        profile = Profile(interest="ML", history=[])
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "Focus on computer vision"
+        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+            result = refine_interest(profile, model="gpt-4o-mini", liked_papers=[("ViT Paper", "vision transformers")])
+        assert "computer vision" in result
 
 
 class TestSummarizer:

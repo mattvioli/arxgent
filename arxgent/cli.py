@@ -6,9 +6,9 @@ import click
 import questionary
 from rich.console import Console
 
-from arxgent.agents import research_papers, summarize_paper
+from arxgent.agents import refine_interest, research_papers, summarize_paper
 from arxgent.config import load_config, save_config
-from arxgent.profile import PaperEntry, load_profile, profile_exists, run_setup_wizard, save_profile
+from arxgent.profile import PaperEntry, Profile, load_profile, profile_exists, run_setup_wizard, save_profile
 from arxgent.storage import save_paper_md
 
 console = Console()
@@ -104,6 +104,7 @@ def run(date_opt: str, start: str | None, end: str | None, skip_review: bool) ->
         PaperEntry(
             arxiv_id=p.arxiv_id,
             title=p.title,
+            authors=p.authors,
             date_delivered=today.isoformat(),
         )
         for p in papers
@@ -206,11 +207,39 @@ def _prompt_review() -> None:
         save_profile(profile)
         console.print("[green]Feedback saved![/green]")
 
+    _offer_interest_refinement(profile)
+
     remaining = sum(1 for p in profile.history if not p.read)
     if remaining:
         console.print(f"[yellow]{remaining} paper(s) remaining to review.[/yellow]")
     else:
         console.print("[green]All caught up![/green]")
+
+
+def _offer_interest_refinement(profile: Profile) -> None:
+    cfg = load_config()
+    liked_recent = [(e.title, e.feedback) for e in profile.history if e.liked and e.feedback]
+    if not liked_recent:
+        return
+
+    try:
+        with console.status("[bold green]Refining your interest paragraph..."):
+            new_interest = refine_interest(profile, model=cfg.llm.model)
+    except Exception:
+        return
+
+    if not new_interest or new_interest == profile.interest:
+        return
+
+    console.print("\n[bold]Interest update available:[/bold]")
+    console.print(f"  [dim]Current:[/dim]  {profile.interest[:200]}")
+    console.print(f"  [green]Proposed:[/green] {new_interest[:200]}")
+
+    apply = questionary.confirm("Update your interest paragraph?", default=True).ask()
+    if apply:
+        profile.interest = new_interest
+        save_profile(profile)
+        console.print("[green]Interest paragraph updated![/green]")
 
 
 if __name__ == "__main__":
