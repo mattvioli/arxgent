@@ -15,6 +15,8 @@ def tmp_config_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr("arxgent.config.CONFIG_DIR", config_dir)
     monkeypatch.setattr("arxgent.config.CONFIG_FILE", config_dir / "config.json")
     monkeypatch.setattr("arxgent.config.PROFILE_FILE", config_dir / "profile.json")
+    monkeypatch.setattr("arxgent.profile.CONFIG_DIR", config_dir)
+    monkeypatch.setattr("arxgent.profile.PROFILE_FILE", config_dir / "profile.json")
     return config_dir
 
 

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 
 
 CONFIG_DIR = Path.home() / ".config" / "arxgent"
@@ -44,7 +44,7 @@ def load_config() -> ArxgentConfig:
     try:
         raw = json.loads(path.read_text())
         return ArxgentConfig.model_validate(raw)
-    except (json.JSONDecodeError, ValueError):
+    except (json.JSONDecodeError, ValidationError):
         return ArxgentConfig()
 
 
