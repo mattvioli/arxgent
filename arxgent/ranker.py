@@ -99,10 +99,10 @@ def rank_papers_by_interest(
         if len(ranked) == top_k:
             return ranked
         ranked_indices = set(indices)
-        for p in papers:
+        for i, p in enumerate(papers):
             if len(ranked) >= top_k:
                 break
-            if p not in [r[0] for r in ranked]:
+            if i not in ranked_indices:
                 ranked.append((p, ""))
         return ranked
     except (json.JSONDecodeError, ValueError, KeyError):
