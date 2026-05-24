@@ -235,15 +235,6 @@ class TestInterestRefinement:
 
 
 class TestReviewIntegration:
-    def test_run_with_skip_review_flag(self, runner: CliRunner, tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        from arxgent.profile import save_profile
-        save_profile(Profile(topics={"CS": ["cs.LG"]}, interest="ML"))
-
-        monkeypatch.setattr("arxgent.cli.research_papers", lambda **kw: [])
-        result = runner.invoke(cli, ["run", "--skip-review"])
-        assert result.exit_code == 0
-        assert "No papers found" in result.output
-
     def test_review_command_no_profile(self, runner: CliRunner, tmp_config_dir: Path) -> None:
         result = runner.invoke(cli, ["review"])
         assert result.exit_code == 0

@@ -47,8 +47,7 @@ def setup(model: str | None) -> None:
 @click.option("--date", "date_opt", type=click.Choice(["today", "last-week", "custom"]), default="last-week")
 @click.option("--start", default=None, help="Start date (YYYY-MM-DD) for --date=custom")
 @click.option("--end", default=None, help="End date (YYYY-MM-DD) for --date=custom")
-@click.option("--skip-review", is_flag=True, default=False, help="Skip the review prompt")
-def run(date_opt: str, start: str | None, end: str | None, skip_review: bool) -> None:
+def run(date_opt: str, start: str | None, end: str | None) -> None:
     """Search, summarize, and save papers from arxiv."""
     if not profile_exists():
         console.print("[yellow]No profile found. Running setup first...[/yellow]")
@@ -112,10 +111,6 @@ def run(date_opt: str, start: str | None, end: str | None, skip_review: bool) ->
     save_profile(profile)
 
     console.print(f"\n[green]Done! Papers saved to {cfg.output_dir}[/green]")
-
-    should_review = not (skip_review or cfg.skip_review)
-    if should_review and profile.history:
-        _prompt_review()
 
 
 @cli.command()

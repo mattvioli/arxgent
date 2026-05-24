@@ -31,5 +31,4 @@ def custom_config() -> ArxgentConfig:
         llm=LLMConfig(model="claude-sonnet-4-20250514", max_tokens=2048, temperature=0.5),
         output_dir="/custom/path",
         num_papers=5,
-        skip_review=True,
     )

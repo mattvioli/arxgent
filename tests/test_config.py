@@ -33,19 +33,15 @@ class TestDefaults:
     def test_default_num_papers(self, default_config: ArxgentConfig) -> None:
         assert default_config.num_papers == 3
 
-    def test_default_skip_review(self, default_config: ArxgentConfig) -> None:
-        assert default_config.skip_review is False
-
 
 class TestRoundtrip:
     def test_save_and_load(self, tmp_config_dir: Path) -> None:
-        config = ArxgentConfig(llm=LLMConfig(model="gpt-4o"), num_papers=5, skip_review=True)
+        config = ArxgentConfig(llm=LLMConfig(model="gpt-4o"), num_papers=5)
         save_config(config)
 
         loaded = load_config()
         assert loaded.llm.model == "gpt-4o"
         assert loaded.num_papers == 5
-        assert loaded.skip_review is True
         assert loaded.llm.temperature == 0.3
 
     def test_file_content(self, tmp_config_dir: Path) -> None:
@@ -55,7 +51,6 @@ class TestRoundtrip:
         raw = json.loads((tmp_config_dir / "config.json").read_text())
         assert raw["llm"]["model"] == "gpt-4o-mini"
         assert raw["num_papers"] == 3
-        assert raw["skip_review"] is False
 
     def test_load_nonexistent_returns_defaults(self) -> None:
         config = load_config()
@@ -70,7 +65,6 @@ class TestPartialConfig:
         config = load_config()
         assert config.num_papers == 10
         assert config.llm.model == "gpt-4o-mini"
-        assert config.skip_review is False
 
     def test_merge_partial_llm(self, tmp_config_dir: Path) -> None:
         partial = {"llm": {"temperature": 0.9}}
@@ -125,14 +119,12 @@ class TestCustomConfig:
     def test_custom_fields(self, custom_config: ArxgentConfig) -> None:
         assert custom_config.output_dir == "/custom/path"
         assert custom_config.num_papers == 5
-        assert custom_config.skip_review is True
 
     def test_custom_roundtrip(self, tmp_config_dir: Path, custom_config: ArxgentConfig) -> None:
         save_config(custom_config)
         loaded = load_config()
         assert loaded.llm.model == "claude-sonnet-4-20250514"
         assert loaded.num_papers == 5
-        assert loaded.skip_review is True
 
 
 class TestDirectoryCreation:
