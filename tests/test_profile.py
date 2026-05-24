@@ -6,8 +6,8 @@ from pathlib import Path
 import questionary
 import pytest
 
+from arxgent import profile as arxgent_profile
 from arxgent.profile import (
-    PROFILE_FILE,
     PaperEntry,
     Profile,
     load_profile,
@@ -99,13 +99,13 @@ class TestProfileFileOps:
         assert profile.topics == {}
 
     def test_corrupted_json_returns_empty(self, tmp_config_dir: Path) -> None:
-        PROFILE_FILE.write_text("not valid json")
+        arxgent_profile.PROFILE_FILE.write_text("not valid json")
         profile = load_profile()
         assert isinstance(profile, Profile)
         assert profile.topics == {}
 
     def test_wrong_types_returns_empty(self, tmp_config_dir: Path) -> None:
-        PROFILE_FILE.write_text(json.dumps({"topics": "not_a_dict"}))
+        arxgent_profile.PROFILE_FILE.write_text(json.dumps({"topics": "not_a_dict"}))
         profile = load_profile()
         assert isinstance(profile, Profile)
 
