@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 import pytest
 
 from arxgent.config import (
     ArxgentConfig,
-    CONFIG_DIR,
     LLMConfig,
     config_exists,
     load_config,

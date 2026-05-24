@@ -6,7 +6,9 @@ import click
 import questionary
 from rich.console import Console
 
-from arxgent.agents import refine_interest, research_papers, summarize_paper
+from arxgent.agents import research_papers
+from arxgent.interest import refine_interest
+from arxgent.summarizer import summarize_paper
 from arxgent.config import load_config, save_config
 from arxgent.profile import PaperEntry, Profile, load_profile, profile_exists, run_setup_wizard, save_profile
 from arxgent.storage import save_paper_md
@@ -73,7 +75,7 @@ def run(date_opt: str, start: str | None, end: str | None) -> None:
         start_date = start
         end_date = end
 
-    with console.status("[bold green]Searching arxiv...") as status:
+    with console.status("[bold green]Searching arxiv..."):
         papers = research_papers(
             profile=profile,
             start_date=start_date,

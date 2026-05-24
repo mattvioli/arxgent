@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Dict, List, Optional
 
 import questionary
@@ -48,10 +47,6 @@ def profile_exists() -> bool:
     return PROFILE_FILE.exists()
 
 
-def _get_group_choices() -> list[dict]:
-    return [{"name": name, "value": name} for name in GROUPS]
-
-
 def _get_subcategory_choices(group_name: str) -> list[dict]:
     subs = GROUPS[group_name]
     return [{"name": f"{cid} — {display}", "value": cid} for cid, display in subs]
@@ -65,7 +60,6 @@ def run_setup_wizard(existing: Optional[Profile] = None) -> Profile:
     print("  First, let's figure out what you're interested in.")
     print("=" * 60 + "\n")
 
-    group_choices = _get_group_choices()
     preselected_groups = [name for name in GROUPS if name in current.topics]
 
     selected_groups = questionary.checkbox(
