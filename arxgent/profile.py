@@ -47,10 +47,6 @@ def profile_exists() -> bool:
     return PROFILE_FILE.exists()
 
 
-def _get_group_choices() -> list[dict]:
-    return [{"name": name, "value": name} for name in GROUPS]
-
-
 def _get_subcategory_choices(group_name: str) -> list[dict]:
     subs = GROUPS[group_name]
     return [{"name": f"{cid} — {display}", "value": cid} for cid, display in subs]

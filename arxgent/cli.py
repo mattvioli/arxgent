@@ -6,7 +6,9 @@ import click
 import questionary
 from rich.console import Console
 
-from arxgent.agents import refine_interest, research_papers, summarize_paper
+from arxgent.agents import research_papers
+from arxgent.interest import refine_interest
+from arxgent.summarizer import summarize_paper
 from arxgent.config import load_config, save_config
 from arxgent.profile import PaperEntry, Profile, load_profile, profile_exists, run_setup_wizard, save_profile
 from arxgent.storage import save_paper_md

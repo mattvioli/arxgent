@@ -4,17 +4,10 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 
-from arxgent.agents import (
-    Paper,
-    _build_query,
-    _dates_to_arxiv,
-    _extract_disliked_keywords,
-    _extract_liked_authors,
-    _extract_liked_keywords,
-    refine_interest,
-    research_papers,
-    summarize_paper,
-)
+from arxgent.agents import Paper, _build_query, _dates_to_arxiv, research_papers
+from arxgent.feedback import _extract_disliked_keywords, _extract_liked_authors, _extract_liked_keywords
+from arxgent.interest import refine_interest
+from arxgent.summarizer import summarize_paper
 from arxgent.profile import PaperEntry, Profile
 
 
@@ -251,7 +244,7 @@ class TestRefineInterest:
         )
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "Interest in transformer architectures"
-        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+        with patch("arxgent.interest.litellm.completion", return_value=mock_response):
             result = refine_interest(profile, model="gpt-4o-mini")
         assert "transformer" in result
 
@@ -264,7 +257,7 @@ class TestRefineInterest:
         )
         mock_response = MagicMock()
         mock_response.choices[0].message.content = ""
-        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+        with patch("arxgent.interest.litellm.completion", return_value=mock_response):
             result = refine_interest(profile, model="gpt-4o-mini")
         assert result == "nlp"
 
@@ -278,7 +271,7 @@ class TestRefineInterest:
         )
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "Interest in LLMs, not RL"
-        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+        with patch("arxgent.interest.litellm.completion", return_value=mock_response):
             result = refine_interest(profile, model="gpt-4o-mini")
         assert "LLM" in result
 
@@ -286,7 +279,7 @@ class TestRefineInterest:
         profile = Profile(interest="ML", history=[])
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "Focus on computer vision"
-        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+        with patch("arxgent.interest.litellm.completion", return_value=mock_response):
             result = refine_interest(profile, model="gpt-4o-mini", liked_papers=[("ViT Paper", "vision transformers")])
         assert "computer vision" in result
 
@@ -313,7 +306,7 @@ class TestSummarizer:
             "- **PDF:** {pdf_url}"
         )
 
-        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+        with patch("arxgent.summarizer.litellm.completion", return_value=mock_response):
             summary = summarize_paper(paper, profile, model="gpt-4o-mini")
 
         assert "**Overview:**" in summary
@@ -337,7 +330,7 @@ class TestSummarizer:
         mock_response = MagicMock()
         mock_response.choices[0].message.content = None
 
-        with patch("arxgent.agents.litellm.completion", return_value=mock_response):
+        with patch("arxgent.summarizer.litellm.completion", return_value=mock_response):
             summary = summarize_paper(paper, profile, model="gpt-4o-mini")
 
         assert summary == ""
