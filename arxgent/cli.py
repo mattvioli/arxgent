@@ -8,6 +8,7 @@ from rich.console import Console
 
 from arxgent.agents import research_papers
 from arxgent.interest import refine_interest
+from arxgent.ranker import rank_papers_by_interest
 from arxgent.summarizer import summarize_paper
 from arxgent.config import load_config, save_config
 from arxgent.profile import PaperEntry, Profile, load_profile, profile_exists, run_setup_wizard, save_profile
@@ -80,17 +81,29 @@ def run(date_opt: str, start: str | None, end: str | None) -> None:
             profile=profile,
             start_date=start_date,
             end_date=end_date,
-            num_papers=cfg.num_papers,
+            fetch_count=cfg.fetch_count,
         )
 
     if not papers:
         console.print("[yellow]No papers found in the given date range. Try widening the window.[/yellow]")
         return
 
-    console.print(f"\n[bold]Found {len(papers)} paper(s). Summarizing...[/bold]")
+    if profile.interest and len(papers) > cfg.num_papers:
+        console.print(f"\n[bold]Fetched {len(papers)} papers. Ranking by interest...[/bold]")
+        with console.status("[bold green]Ranking papers by interest..."):
+            ranked = rank_papers_by_interest(
+                papers=papers,
+                interest=profile.interest,
+                model=cfg.llm.model,
+                top_k=cfg.num_papers,
+            )
+    else:
+        ranked = [(p, "") for p in papers]
 
-    for i, paper in enumerate(papers, 1):
-        with console.status(f"[bold green]Summarizing paper {i}/{len(papers)}..."):
+    console.print(f"\n[bold]Selected {len(ranked)} paper(s). Summarizing...[/bold]")
+
+    for i, (paper, reason) in enumerate(ranked, 1):
+        with console.status(f"[bold green]Summarizing paper {i}/{len(ranked)}..."):
             summary = summarize_paper(
                 paper=paper,
                 profile=profile,
@@ -99,7 +112,8 @@ def run(date_opt: str, start: str | None, end: str | None) -> None:
 
         filepath = save_paper_md(paper, summary, cfg.output_dir)
         console.print(f"  [green]{i}.[/green] {paper.title}")
-        console.print(f"       Saved: {filepath}")
+        console.print(f"\tReason: {reason[:120]}")
+        console.print(f"\tSaved: {filepath}")
 
     profile.history.extend(
         PaperEntry(
@@ -108,7 +122,7 @@ def run(date_opt: str, start: str | None, end: str | None) -> None:
             authors=p.authors,
             date_delivered=today.isoformat(),
         )
-        for p in papers
+        for p, _ in ranked
     )
     save_profile(profile)
 

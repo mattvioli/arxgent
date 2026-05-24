@@ -22,6 +22,7 @@ class ArxgentConfig(BaseModel):
     llm: LLMConfig = Field(default_factory=LLMConfig)
     output_dir: str = str(Path.home() / "arxgent_papers")
     num_papers: int = 3
+    fetch_count: int = 50
 
 
 def resolve_env_vars(value: str) -> str:
