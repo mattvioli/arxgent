@@ -27,7 +27,7 @@ class Paper(BaseModel):
 
 def _dates_to_arxiv(start: date, end: date) -> str:
     fmt = "%Y%m%d%H%M%S"
-    return f"[{start.strftime(fmt)}+TO+{end.strftime(fmt)}]"
+    return f"[{start.strftime(fmt)} TO {end.strftime(fmt)}]"
 
 
 def _build_query(profile: Profile, start_date: str, end_date: str) -> str:
@@ -41,7 +41,7 @@ def _build_query(profile: Profile, start_date: str, end_date: str) -> str:
         if len(cat_parts) == 1:
             parts.append(cat_parts[0])
         else:
-            parts.append("(" + "+OR+".join(cat_parts) + ")")
+            parts.append("(" + " OR ".join(cat_parts) + ")")
 
     date_filter = "submittedDate:" + _dates_to_arxiv(
         datetime.strptime(start_date, "%Y-%m-%d").date(),
@@ -51,17 +51,17 @@ def _build_query(profile: Profile, start_date: str, end_date: str) -> str:
 
     liked_keywords = _extract_liked_keywords(profile)
     for kw in liked_keywords:
-        parts.append(f"+AND+all:{kw}")
+        parts.append(f"all:{kw}")
 
     liked_authors = _extract_liked_authors(profile)
     for author in liked_authors:
-        parts.append(f"+AND+au:{_arxiv_escape(author)}")
+        parts.append(f"au:{_arxiv_escape(author)}")
 
     disliked_keywords = _extract_disliked_keywords(profile)
     for kw in disliked_keywords:
-        parts.append(f"+ANDNOT+all:{kw}")
+        parts.append(f"ANDNOT all:{kw}")
 
-    return "+AND+".join(parts)
+    return " AND ".join(parts)
 
 
 def _arxiv_escape(term: str) -> str:

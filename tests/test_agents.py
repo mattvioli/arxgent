@@ -23,7 +23,7 @@ from arxgent.profile import PaperEntry, Profile
 class TestDateConversion:
     def test_arxiv_format(self) -> None:
         result = _dates_to_arxiv(datetime(2026, 5, 17).date(), datetime(2026, 5, 24).date())
-        assert result == "[20260517000000+TO+20260524000000]"
+        assert result == "[20260517000000 TO 20260524000000]"
 
 
 class TestQueryBuilder:
@@ -36,7 +36,7 @@ class TestQueryBuilder:
     def test_multiple_categories_ored(self) -> None:
         profile = Profile(topics={"CS": ["cs.LG", "cs.AI"]})
         query = _build_query(profile, "2026-05-17", "2026-05-24")
-        assert "cat:cs.LG+OR+cat:cs.AI" in query
+        assert "cat:cs.LG OR cat:cs.AI" in query
 
     def test_no_categories(self) -> None:
         profile = Profile()
@@ -53,7 +53,7 @@ class TestQueryBuilder:
     def test_date_range_in_query(self) -> None:
         profile = Profile(topics={"CS": ["cs.LG"]})
         query = _build_query(profile, "2026-05-17", "2026-05-24")
-        assert "submittedDate:[20260517000000+TO+20260524000000]" in query
+        assert "submittedDate:[20260517000000 TO 20260524000000]" in query
 
 
 class TestFeedbackExtraction:
@@ -94,7 +94,7 @@ class TestFeedbackExtraction:
             ],
         )
         query = _build_query(profile, "2026-05-17", "2026-05-24")
-        assert "ANDNOT+all:reinforcement" in query
+        assert "ANDNOT all:reinforcement" in query
 
     def test_keyword_dedup_by_frequency(self) -> None:
         profile = Profile(history=[
