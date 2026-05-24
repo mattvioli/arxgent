@@ -91,7 +91,7 @@ class TestConfigExists:
         save_config(ArxgentConfig())
         assert config_exists() is True
 
-    def test_not_exists(self) -> None:
+    def test_not_exists(self, tmp_config_dir: Path) -> None:
         assert config_exists() is False
 
 

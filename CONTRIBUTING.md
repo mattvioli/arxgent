@@ -5,30 +5,24 @@
 ### Module overview
 
 ```
-┌────────────────────────────────────────────────────┐
-│                      cli.py                        │
-│                 (click commands)                    │
-└──┬───────┬──────────┬──────────┬───────────────────┘
-   │       │          │          │
-   ▼       ▼          ▼          ▼
-┌──────┐ ┌────────┐ ┌────────┐ ┌──────────┐
-│agents│ │feedback│ │interest│ │summarizer│
-│.py   │ │.py     │ │.py     │ │.py       │
-│arxiv │ │keyword │ │interest│ │litellm   │
-│query │ │extract │ │refine  │ │summarize │
-│build │ │+score  │ │(LLM)   │ │(LLM)     │
-└──┬───┘ └────────┘ └────────┘ └──────────┘
-   │
-   ▼
-┌──────────┐
-│storage.py│
-│(YAML md) │
-└──────────┘
-
-┌──────────────┐     ┌──────────────────┐     ┌──────────────────┐
-│   config.py  │     │   profile.py     │     │  categories.py   │
-│ (Pydantic)   │     │ (Pydantic+setup) │     │  (arxiv groups)  │
-└──────────────┘     └──────────────────┘     └──────────────────┘
+┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   cli.py    │────▶│  agents.py   │────▶│ storage.py  │
+│  (click)    │     │ (arxiv+LLM)  │     │   (YAML md) │
+└─────┬───────┘     └──────┬───────┘     └─────────────┘
+      │                    │
+      │     ┌──────────────┴──────────┐
+      │     │                         │
+      ▼     ▼                         ▼
+┌──────────────┐          ┌──────────────────┐
+│   config.py  │          │   profile.py     │
+│ (Pydantic)   │          │ (Pydantic+setup) │
+└──────────────┘          └────────┬─────────┘
+                                   │
+                                   ▼
+                          ┌──────────────────┐
+                          │  categories.py   │
+                          │  (arxiv groups)  │
+                          └──────────────────┘
 ```
 
 ### CLI command flow
@@ -41,18 +35,18 @@ flowchart TD
     D --> E[Save profile.json]
 
     F[arxgent run] --> G[Load profile + config]
-    G --> H[agents._build_query: categories + dates + keywords + authors]
+    G --> H[_build_query: categories + dates + keywords + authors]
     H --> I[arxiv.Search API]
-    I --> J[For each paper: summarizer.summarize_paper via litellm]
-    J --> K[storage.save_paper_md: YAML frontmatter .md file]
+    I --> J[For each paper: summarize_paper via litellm]
+    J --> K[save_paper_md: YAML frontmatter .md file]
     K --> L[Append PaperEntry to profile history]
     L --> M[Save profile.json]
 
     N[arxgent review] --> O[Load profile]
     O --> P[Iterate unread PaperEntry]
     P --> Q[Mark read/liked/feedback]
-    Q --> R[feedback._extract_liked_keywords, feedback._extract_liked_authors]
-    R --> S[interest.refine_interest via litellm]
+    Q --> R[_extract_liked_keywords, _extract_liked_authors]
+    R --> S[refine_interest via litellm]
     S --> T[Offer to update interest paragraph]
     T --> U[Save profile.json]
 
@@ -69,7 +63,7 @@ sequenceDiagram
     participant CLI as cli.py
     participant Agents as agents.py
     participant ArXiv as arxiv API
-    participant LLM as summarizer.py
+    participant LLM as litellm
     participant Disk as storage.py
 
     User->>CLI: arxgent run
@@ -81,8 +75,10 @@ sequenceDiagram
     Agents-->>CLI: List[Paper]
 
     loop Each paper
-        CLI->>LLM: summarize_paper(paper, profile, model)
-        LLM-->>CLI: Markdown summary
+        CLI->>Agents: summarize_paper(paper, profile, model)
+        Agents->>LLM: litellm.completion(system=prompt, user=title+abstract)
+        LLM-->>Agents: Markdown summary
+        Agents-->>CLI: str summary
         CLI->>Disk: save_paper_md(paper, summary, output_dir)
         Disk-->>CLI: Path to .md file
     end
@@ -96,21 +92,21 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    A[Feedback] --> B[feedback._extract_terms]
-    B --> C[feedback._score_keywords: dedup + frequency]
+    A[Feedback] --> B[_extract_terms]
+    B --> C[_score_keywords: dedup + frequency]
     C --> D[liked_keywords: all:term]
     C --> E[disliked_keywords: ANDNOT all:term]
 
-    F[Liked papers] --> G[feedback._extract_liked_authors]
+    F[Liked papers] --> G[_extract_liked_authors]
     G --> H[liked_authors: au:Name]
 
-    D --> I[agents._build_query]
+    D --> I[_build_query]
     E --> I
     H --> I
     I --> J[arxiv query]
     J --> K[Next run]
 
-    L[interest.refine_interest via LLM] --> M[Updated interest paragraph]
+    L[refine_interest via LLM] --> M[Updated interest paragraph]
     M --> N[Used in summarizer prompts]
 ```
 
@@ -119,10 +115,7 @@ flowchart LR
 | Module | Responsibility | Key exports |
 |---|---|---|
 | `cli.py` | Click command group, user interaction, orchestration | `cli`, `setup`, `run`, `review`, `status` |
-| `agents.py` | Arxiv query building, search, Paper model | `research_papers`, `_build_query`, `Paper` |
-| `feedback.py` | Keyword/author extraction from feedback history | `_extract_liked_keywords`, `_extract_disliked_keywords`, `_extract_liked_authors` |
-| `interest.py` | Interest paragraph refinement via LLM | `refine_interest` |
-| `summarizer.py` | Paper summarization via LLM | `summarize_paper` |
+| `agents.py` | Arxiv query building, search, LLM summarization, interest refinement | `research_papers`, `summarize_paper`, `refine_interest`, `Paper` |
 | `config.py` | Config model, persistence, env var resolution | `ArxgentConfig`, `LLMConfig`, `load_config`, `save_config` |
 | `profile.py` | Profile model, persistence, setup wizard | `Profile`, `PaperEntry`, `load_profile`, `run_setup_wizard` |
 | `categories.py` | Arxiv category hierarchy (8 groups, ~200 subcategories) | `GROUPS`, `get_category_name`, `get_group_for_category` |
@@ -132,7 +125,7 @@ flowchart LR
 
 ```bash
 git clone <repo> && cd arxgent
-uv sync --group dev
+uv sync
 ```
 
 ## Running tests
@@ -160,11 +153,10 @@ uv run pytest tests/ --cov=arxgent  # coverage
 - **Query built programmatically**: Categories + dates + feedback keywords/authors constructed in Python rather than LLM-generated — deterministic, zero extra API cost
 - **Keyword extraction via regex + frequency**: Not LLM — keeps latency low for v1
 - **Spaces in arxiv queries**: Use actual spaces (not `+`) in query strings so the `arxiv` library's `urlencode` encodes them correctly (spaces → `+` rather than `+` → `%2B`)
-- **LLM modules separated**: `summarizer.py` and `interest.py` both use litellm but serve different purposes — kept separate for testability and clarity
 
 ## Adding a new feature
 
-1. Add the logic in the appropriate module
+1. Add the logic in the appropriate module (`agents.py`, `profile.py`, etc.)
 2. Wire up the CLI command in `cli.py`
 3. Add tests in the corresponding `tests/test_*.py` file
 4. Run `uv run pytest tests/` to verify
