@@ -31,6 +31,9 @@ class TestDefaults:
     def test_default_num_papers(self, default_config: ArxgentConfig) -> None:
         assert default_config.num_papers == 3
 
+    def test_default_fetch_count(self, default_config: ArxgentConfig) -> None:
+        assert default_config.fetch_count == 50
+
 
 class TestRoundtrip:
     def test_save_and_load(self, tmp_config_dir: Path) -> None:

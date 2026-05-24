@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 from arxgent.agents import Paper, _build_query, _dates_to_arxiv, research_papers
 from arxgent.feedback import _extract_disliked_keywords, _extract_liked_authors, _extract_liked_keywords
 from arxgent.interest import refine_interest
+from arxgent.ranker import _extract_json, rank_papers_by_interest
 from arxgent.summarizer import summarize_paper
 from arxgent.profile import PaperEntry, Profile
 
@@ -85,7 +86,7 @@ class TestFeedbackExtraction:
             ],
         )
         query = _build_query(profile, "2026-05-17", "2026-05-24")
-        assert "ANDNOT all:reinforcement" in query
+        assert "NOT all:reinforcement" in query
 
     def test_keyword_dedup_by_frequency(self) -> None:
         profile = Profile(history=[
@@ -206,7 +207,7 @@ class TestResearchPapers:
                 profile=Profile(topics={"CS": ["cs.LG"]}),
                 start_date="2026-05-17",
                 end_date="2026-05-24",
-                num_papers=2,
+                fetch_count=2,
             )
 
         assert len(papers) == 2
@@ -223,10 +224,85 @@ class TestResearchPapers:
                 profile=Profile(topics={"CS": ["cs.LG"]}),
                 start_date="2026-05-17",
                 end_date="2026-05-24",
-                num_papers=5,
+                fetch_count=5,
             )
 
         assert papers == []
+
+
+class TestExtractJson:
+    def test_passes_through_plain_json(self) -> None:
+        assert _extract_json('[{"index": 0}]') == '[{"index": 0}]'
+
+    def test_strips_markdown_fences(self) -> None:
+        result = _extract_json("```json\n[1, 2, 3]\n```")
+        assert result == "[1, 2, 3]"
+
+    def test_strips_leading_text(self) -> None:
+        result = _extract_json("Here are the papers:\n[1, 2, 3]")
+        assert result == "[1, 2, 3]"
+
+    def test_strips_trailing_text(self) -> None:
+        result = _extract_json('[1, 2, 3]\n\nThese are the best matches.')
+        assert result == "[1, 2, 3]"
+
+    def test_handles_empty_string(self) -> None:
+        assert _extract_json("") == ""
+
+
+class TestRanker:
+    def test_returns_all_if_no_interest(self) -> None:
+        papers = [Paper(arxiv_id=str(i), title=f"Paper {i}", authors=[], published="2026-01-01", categories=[], abstract="a", arxiv_url="", pdf_url="") for i in range(3)]
+        result = rank_papers_by_interest(papers, interest="", model="gpt-4o-mini", top_k=3)
+        assert len(result) == 3
+        assert all(isinstance(r, tuple) and len(r) == 2 for r in result)
+
+    def test_returns_all_if_fewer_than_top_k(self) -> None:
+        papers = [Paper(arxiv_id="1", title="A", authors=[], published="2026-01-01", categories=[], abstract="a", arxiv_url="", pdf_url="")]
+        result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=5)
+        assert len(result) == 1
+        assert isinstance(result[0], tuple)
+
+    def test_uses_llm_to_rank(self) -> None:
+        papers = [Paper(arxiv_id=str(i), title=f"Paper {i}", authors=[], published="2026-01-01", categories=[], abstract="a", arxiv_url="", pdf_url="") for i in range(5)]
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "[2, 0, 4]"
+        with patch("arxgent.ranker.litellm.completion", return_value=mock_response):
+            result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=3)
+        assert len(result) == 3
+        assert result[0][0].arxiv_id == "2"
+        assert result[1][0].arxiv_id == "0"
+        assert result[2][0].arxiv_id == "4"
+        assert result[0][1] == ""
+
+    def test_falls_back_to_first_n_on_invalid_json(self) -> None:
+        papers = [Paper(arxiv_id=str(i), title=f"Paper {i}", authors=[], published="2026-01-01", categories=[], abstract="a", arxiv_url="", pdf_url="") for i in range(5)]
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "not json at all"
+        with patch("arxgent.ranker.litellm.completion", return_value=mock_response):
+            result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=3)
+        assert [p[0].arxiv_id for p in result] == ["0", "1", "2"]
+
+    def test_parses_object_format_with_reasons(self) -> None:
+        papers = [Paper(arxiv_id=str(i), title=f"Paper {i}", authors=[], published="2026-01-01", categories=[], abstract="a", arxiv_url="", pdf_url="") for i in range(5)]
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = '[{"index": 1, "reason": "Best match for ML interest."}, {"index": 3, "reason": "Relevant methods."}]'
+        with patch("arxgent.ranker.litellm.completion", return_value=mock_response):
+            result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=2)
+        assert len(result) == 2
+        assert result[0][0].arxiv_id == "1"
+        assert result[1][0].arxiv_id == "3"
+        assert result[0][1] == "Best match for ML interest."
+        assert result[1][1] == "Relevant methods."
+
+    def test_fills_missing_to_reach_top_k(self) -> None:
+        papers = [Paper(arxiv_id=str(i), title=f"Paper {i}", authors=[], published="2026-01-01", categories=[], abstract="a", arxiv_url="", pdf_url="") for i in range(5)]
+        mock_response = MagicMock()
+        mock_response.choices[0].message.content = "[3]"
+        with patch("arxgent.ranker.litellm.completion", return_value=mock_response):
+            result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=3)
+        assert len(result) == 3
+        assert result[0][0].arxiv_id == "3"
 
 
 class TestRefineInterest:

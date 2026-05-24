@@ -59,7 +59,7 @@ def _build_query(profile: Profile, start_date: str, end_date: str) -> str:
 
     disliked_keywords = _extract_disliked_keywords(profile)
     for kw in disliked_keywords:
-        parts.append(f"ANDNOT all:{kw}")
+        parts.append(f"NOT all:{kw}")
 
     return " AND ".join(parts)
 
@@ -72,14 +72,14 @@ def research_papers(
     profile: Profile,
     start_date: str,
     end_date: str,
-    num_papers: int = 3,
+    fetch_count: int = 50,
 ) -> list[Paper]:
     query = _build_query(profile, start_date, end_date)
 
     client = arxiv.Client()
     search = arxiv.Search(
         query=query,
-        max_results=num_papers,
+        max_results=fetch_count,
         sort_by=arxiv.SortCriterion.Relevance,
     )
 
