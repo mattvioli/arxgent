@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Dict, List, Optional
 
 import questionary
@@ -65,7 +64,6 @@ def run_setup_wizard(existing: Optional[Profile] = None) -> Profile:
     print("  First, let's figure out what you're interested in.")
     print("=" * 60 + "\n")
 
-    group_choices = _get_group_choices()
     preselected_groups = [name for name in GROUPS if name in current.topics]
 
     selected_groups = questionary.checkbox(

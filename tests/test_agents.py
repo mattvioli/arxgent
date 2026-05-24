@@ -3,7 +3,6 @@ from __future__ import annotations
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 from arxgent.agents import (
     Paper,
@@ -12,7 +11,6 @@ from arxgent.agents import (
     _extract_disliked_keywords,
     _extract_liked_authors,
     _extract_liked_keywords,
-    _extract_terms,
     refine_interest,
     research_papers,
     summarize_paper,
