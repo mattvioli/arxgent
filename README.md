@@ -11,6 +11,7 @@ A CLI tool that searches arxiv by your chosen categories, summarizes papers via 
 - **Interest evolution** — LLM-generated interest paragraph updates based on what you liked/disliked
 - **Obsidian-ready output** — YAML frontmatter with arxiv/PDF links, saved as `Title_Author_YYYY-MM.md`
 - **Interactive CLI** — questionary-powered setup and review wizards
+- **Interactive TUI** — Textual-powered chat interface for real-time arxiv search and paper exploration
 
 ## Quick start
 
@@ -20,6 +21,7 @@ uv tool install arxgent
 
 arxgent setup              # interactive wizard: pick categories, write interest
 arxgent run                # search → summarize → save → review
+arxgent research           # interactive TUI chat for real-time paper discovery
 arxgent review             # re-review unread papers
 arxgent status             # show profile, stats, config
 ```
@@ -57,6 +59,9 @@ arxgent run --skip-review            # skip the post-run review prompt
 
 arxgent setup --model claude-sonnet-4-20250514   # setup + set LLM
 
+arxgent research                     # interactive TUI chat
+arxgent research --model claude-sonnet-4-20250514  # with custom model
+
 arxgent review                       # review unread papers
 arxgent status                       # check stats
 ```
@@ -82,12 +87,18 @@ uv run ruff check .
 ```
 arxgent/
 ├── arxgent/
-│   ├── agents.py       # paper model, query builder, arxiv search, summarizer, interest refiner
-│   ├── categories.py   # 8 arxiv groups with subcategory IDs and names
-│   ├── cli.py          # click commands: setup, run, review, status
-│   ├── config.py       # Pydantic config model, save/load/resolve env vars
-│   ├── profile.py      # Pydantic profile model, save/load, setup wizard
-│   └── storage.py      # markdown writer with YAML frontmatter
+│   ├── agents.py           # paper model, query builder, arxiv search
+│   ├── categories.py       # 8 arxiv groups with subcategory IDs and names
+│   ├── cli.py              # click commands: setup, run, research, review, status
+│   ├── config.py           # Pydantic config model, save/load/resolve env vars
+│   ├── feedback.py         # keyword and author extraction from feedback
+│   ├── interest.py         # LLM-based interest refinement
+│   ├── profile.py          # Pydantic profile model, save/load, setup wizard
+│   ├── ranker.py           # LLM-based paper ranking by interest
+│   ├── research_chat.py    # Textual TUI: interactive chat interface
+│   ├── research_engine.py  # LLM tool loop: search, fetch, summarize
+│   ├── storage.py          # markdown writer with YAML frontmatter
+│   └── summarizer.py       # LLM paper summarization
 └── tests/
     ├── test_agents.py
     ├── test_categories.py
