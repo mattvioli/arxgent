@@ -9,6 +9,7 @@ from rich.console import Console
 from arxgent.agents import research_papers
 from arxgent.interest import refine_interest
 from arxgent.ranker import rank_papers_by_interest
+from arxgent.research_chat import run_research
 from arxgent.summarizer import summarize_paper
 from arxgent.config import load_config, save_config
 from arxgent.profile import PaperEntry, Profile, load_profile, profile_exists, run_setup_wizard, save_profile
@@ -127,6 +128,14 @@ def run(date_opt: str, start: str | None, end: str | None) -> None:
     save_profile(profile)
 
     console.print(f"\n[green]Done! Papers saved to {cfg.output_dir}[/green]")
+
+
+@cli.command()
+@click.option("--model", default=None, help="LLM model (default from config)")
+def research(model: str | None) -> None:
+    """Open the interactive research chat interface."""
+    cfg = load_config()
+    run_research(model=model or cfg.llm.model)
 
 
 @cli.command()

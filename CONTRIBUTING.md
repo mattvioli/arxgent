@@ -30,6 +30,13 @@ Supporting modules:
                    │  interest.py     │     │  feedback.py │
                    │ (LLM refine)     │     │ (keyword ext)│
                    └──────────────────┘     └──────────────┘
+
+TUI modules (interactive research chat):
+
+┌──────────────────────┐     ┌──────────────────────┐
+│  research_chat.py    │────▶│  research_engine.py  │
+│  (Textual TUI)       │     │  (LLM tool loop)     │
+└──────────────────────┘     └──────────────────────┘
 ```
 
 ### CLI command flow
@@ -50,17 +57,30 @@ flowchart TD
     L --> M[Append PaperEntry to profile history]
     M --> N[Save profile.json]
 
-    O[arxgent review] --> P[Load profile]
-    P --> Q[Iterate unread PaperEntry]
-    Q --> R[Mark read/liked/feedback]
-    R --> S[_extract_liked_keywords, _extract_liked_authors]
-    S --> T[refine_interest via litellm]
-    T --> U[Offer to update interest paragraph]
-    U --> V[Save profile.json]
+    O[arxgent research] --> P[Launch Textual TUI]
+    P --> Q[ChatScreen: user types query]
+    Q --> R[ResearchEngine.process_message]
+    R --> S{LLM calls tool?}
+    S -- search_arxiv --> T[_search_arxiv_impl]
+    S -- get_paper_details --> U[_get_paper_details_impl]
+    S -- summarize_paper --> V[_summarize_paper_impl]
+    T --> W[Update papers in PaperPanel]
+    U --> W
+    V --> X[Return summary to chat]
+    W --> X
+    X --> Q
 
-    Q --> W{All reviewed?}
-    W -- yes --> X["All caught up!"]
-    W -- no --> Y["N remaining"]
+    Y[arxgent review] --> Z[Load profile]
+    Z --> AA[Iterate unread PaperEntry]
+    AA --> AB[Mark read/liked/feedback]
+    AB --> AC[_extract_liked_keywords, _extract_liked_authors]
+    AC --> AD[refine_interest via litellm]
+    AD --> AE[Offer to update interest paragraph]
+    AE --> AF[Save profile.json]
+
+    AA --> AG{All reviewed?}
+    AG -- yes --> AH["All caught up!"]
+    AG -- no --> AI["N remaining"]
 ```
 
 ### Run data flow
@@ -139,6 +159,8 @@ flowchart LR
 | `profile.py` | Profile model, persistence, setup wizard | `Profile`, `PaperEntry`, `load_profile`, `run_setup_wizard` |
 | `categories.py` | Arxiv category hierarchy (8 groups, ~200 subcategories) | `GROUPS`, `get_category_name`, `get_group_for_category` |
 | `storage.py` | Markdown file output with YAML frontmatter | `save_paper_md`, `_slugify` |
+| `research_chat.py` | Textual TUI: interactive research chat interface | `ResearchApp`, `ChatScreen`, `PaperCard`, `PaperPanel`, `run_research` |
+| `research_engine.py` | LLM-driven tool loop for interactive research | `ResearchEngine.process_message`, `_search_arxiv_impl`, `_get_paper_details_impl`, `_summarize_paper_impl` |
 
 ## Setup for development
 
