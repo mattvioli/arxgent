@@ -7,6 +7,7 @@ os.environ["LITELLM_LOG"] = "ERROR"
 import litellm
 
 from arxgent.agents import Paper
+from arxgent.config import LLMConfig
 from arxgent.profile import Profile
 
 
@@ -26,11 +27,11 @@ Then include these metadata lines at the end:
 - **PDF:** {{pdf_url}}"""
 
 
-def summarize_paper(paper: Paper, profile: Profile, model: str) -> str:
+def summarize_paper(paper: Paper, profile: Profile, llm_config: LLMConfig) -> str:
     prompt = SUMMARIZE_SYSTEM_PROMPT.format(interest=profile.interest)
 
-    response = litellm.completion(
-        model=model,
+    kwargs: dict = dict(
+        model=llm_config.model,
         messages=[
             {"role": "system", "content": prompt},
             {
@@ -42,9 +43,15 @@ def summarize_paper(paper: Paper, profile: Profile, model: str) -> str:
                 ),
             },
         ],
-        max_tokens=1024,
-        temperature=0.3,
+        max_tokens=llm_config.max_tokens,
+        temperature=llm_config.temperature,
     )
+    if llm_config.api_base:
+        kwargs["api_base"] = llm_config.api_base
+    if llm_config.api_key:
+        kwargs["api_key"] = llm_config.api_key
+
+    response = litellm.completion(**kwargs)
 
     summary = response.choices[0].message.content or ""
 

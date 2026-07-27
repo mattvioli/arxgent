@@ -27,7 +27,7 @@ def default_config() -> ArxgentConfig:
 @pytest.fixture
 def custom_config() -> ArxgentConfig:
     return ArxgentConfig(
-        llm=LLMConfig(model="claude-sonnet-4-20250514", max_tokens=2048, temperature=0.5),
+        llm=LLMConfig(model="claude-sonnet-4-20250514", max_tokens=2048, temperature=0.5, api_base="https://custom.api.com/v1", api_key="${CUSTOM_API_KEY}"),
         output_dir="/custom/path",
         num_papers=5,
     )

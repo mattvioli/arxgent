@@ -117,15 +117,38 @@ class TestCustomConfig:
         assert custom_config.llm.max_tokens == 2048
         assert custom_config.llm.temperature == 0.5
 
+    def test_custom_api_base(self, custom_config: ArxgentConfig) -> None:
+        assert custom_config.llm.api_base == "https://custom.api.com/v1"
+
+    def test_custom_api_key(self, custom_config: ArxgentConfig) -> None:
+        assert custom_config.llm.api_key == "${CUSTOM_API_KEY}"
+
     def test_custom_fields(self, custom_config: ArxgentConfig) -> None:
         assert custom_config.output_dir == "/custom/path"
         assert custom_config.num_papers == 5
 
-    def test_custom_roundtrip(self, tmp_config_dir: Path, custom_config: ArxgentConfig) -> None:
+    def test_custom_roundtrip(self, tmp_config_dir: Path, custom_config: ArxgentConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CUSTOM_API_KEY", "sk-test-key")
         save_config(custom_config)
         loaded = load_config()
         assert loaded.llm.model == "claude-sonnet-4-20250514"
+        assert loaded.llm.api_base == "https://custom.api.com/v1"
+        assert loaded.llm.api_key == "sk-test-key"
         assert loaded.num_papers == 5
+
+    def test_api_key_resolved_from_env(self, tmp_config_dir: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("CUSTOM_API_KEY", "sk-real-key")
+        config_data = {"llm": {"model": "gpt-4o", "api_key": "${CUSTOM_API_KEY}", "api_base": "https://custom.api.com/v1"}}
+        (tmp_config_dir / "config.json").write_text(json.dumps(config_data))
+        loaded = load_config()
+        assert loaded.llm.api_key == "sk-real-key"
+        assert loaded.llm.api_base == "https://custom.api.com/v1"
+
+    def test_default_api_base_is_none(self, default_config: ArxgentConfig) -> None:
+        assert default_config.llm.api_base is None
+
+    def test_default_api_key_is_none(self, default_config: ArxgentConfig) -> None:
+        assert default_config.llm.api_key is None
 
 
 class TestDirectoryCreation:

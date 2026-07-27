@@ -9,6 +9,7 @@ os.environ["LITELLM_LOG"] = "ERROR"
 import litellm
 
 from arxgent.agents import Paper
+from arxgent.config import LLMConfig
 
 
 RANKER_SYSTEM_PROMPT = """\
@@ -56,7 +57,7 @@ def _extract_json(text: str) -> str:
 def rank_papers_by_interest(
     papers: list[Paper],
     interest: str,
-    model: str,
+    llm_config: LLMConfig,
     top_k: int = 3,
 ) -> list[tuple[Paper, str]]:
     if not interest or not papers:
@@ -68,15 +69,21 @@ def rank_papers_by_interest(
     context = _build_ranker_context(papers)
     prompt = f"Research interest: {interest}\n\nPapers:\n{context}"
 
-    response = litellm.completion(
-        model=model,
+    kwargs: dict = dict(
+        model=llm_config.model,
         messages=[
             {"role": "system", "content": RANKER_SYSTEM_PROMPT.format(top_k=top_k)},
             {"role": "user", "content": prompt},
         ],
-        max_tokens=top_k * 128,
-        temperature=0.3,
+        max_tokens=llm_config.max_tokens,
+        temperature=llm_config.temperature,
     )
+    if llm_config.api_base:
+        kwargs["api_base"] = llm_config.api_base
+    if llm_config.api_key:
+        kwargs["api_key"] = llm_config.api_key
+
+    response = litellm.completion(**kwargs)
 
     content = (response.choices[0].message.content or "").strip()
 

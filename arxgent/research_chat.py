@@ -12,6 +12,7 @@ from textual.reactive import reactive
 from textual.screen import Screen
 from textual.widgets import Button, Input, Label, RichLog, Static
 
+from arxgent.config import LLMConfig
 from arxgent.research_engine import (
     TOOL_STATUS_MESSAGES,
     ResearchEngine,
@@ -114,10 +115,10 @@ class ChatScreen(Screen[None]):
         Binding("ctrl+c", "quit", "Quit"),
     ]
 
-    def __init__(self, model: str) -> None:
+    def __init__(self, llm_config: LLMConfig) -> None:
         super().__init__()
-        self.model = model
-        self.engine = ResearchEngine(model=model)
+        self.llm_config = llm_config
+        self.engine = ResearchEngine(llm_config=llm_config)
         self.history: list[dict[str, Any]] = []
 
     def compose(self) -> ComposeResult:
@@ -291,14 +292,13 @@ class ResearchApp(App[None]):
     }
     """
 
-    def __init__(self, model: str = "gpt-4o-mini") -> None:
+    def __init__(self, llm_config: LLMConfig) -> None:
         super().__init__()
-        self.model = model
+        self.llm_config = llm_config
 
     def on_mount(self) -> None:
-        self.push_screen(ChatScreen(model=self.model))
+        self.push_screen(ChatScreen(llm_config=self.llm_config))
 
-
-def run_research(model: str = "gpt-4o-mini") -> None:
-    app = ResearchApp(model=model)
+def run_research(llm_config: LLMConfig) -> None:
+    app = ResearchApp(llm_config=llm_config)
     app.run()
