@@ -16,6 +16,8 @@ class LLMConfig(BaseModel):
     model: str = "gpt-4o-mini"
     max_tokens: int = 1024
     temperature: float = 0.3
+    api_base: str | None = None
+    api_key: str | None = None
 
 
 class ArxgentConfig(BaseModel):
@@ -42,7 +44,12 @@ def load_config() -> ArxgentConfig:
         return ArxgentConfig()
     try:
         raw = json.loads(path.read_text())
-        return ArxgentConfig.model_validate(raw)
+        cfg = ArxgentConfig.model_validate(raw)
+        if cfg.llm.api_base:
+            cfg.llm.api_base = resolve_env_vars(cfg.llm.api_base)
+        if cfg.llm.api_key:
+            cfg.llm.api_key = resolve_env_vars(cfg.llm.api_key)
+        return cfg
     except (json.JSONDecodeError, ValidationError):
         return ArxgentConfig()
 

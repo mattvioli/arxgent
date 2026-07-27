@@ -95,7 +95,7 @@ def run(date_opt: str, start: str | None, end: str | None) -> None:
             ranked = rank_papers_by_interest(
                 papers=papers,
                 interest=profile.interest,
-                model=cfg.llm.model,
+                llm_config=cfg.llm,
                 top_k=cfg.num_papers,
             )
     else:
@@ -108,7 +108,7 @@ def run(date_opt: str, start: str | None, end: str | None) -> None:
             summary = summarize_paper(
                 paper=paper,
                 profile=profile,
-                model=cfg.llm.model,
+                llm_config=cfg.llm,
             )
 
         filepath = save_paper_md(paper, summary, cfg.output_dir)
@@ -135,7 +135,9 @@ def run(date_opt: str, start: str | None, end: str | None) -> None:
 def research(model: str | None) -> None:
     """Open the interactive research chat interface."""
     cfg = load_config()
-    run_research(model=model or cfg.llm.model)
+    if model:
+        cfg.llm.model = model
+    run_research(llm_config=cfg.llm)
 
 
 @cli.command()
@@ -165,7 +167,11 @@ def status() -> None:
 
     console.print("\n[bold]Arxgent Status[/bold]")
     console.print("=" * 40)
-    console.print(f"[bold]Model:[/bold] {cfg.llm.model}")
+    console.print(f"[bold]Model:[/bold] {cfg.llm.model}", end="")
+    if cfg.llm.api_base:
+        console.print(f" [dim](api_base: {cfg.llm.api_base})[/dim]")
+    else:
+        console.print()
     console.print(f"[bold]Output directory:[/bold] {cfg.output_dir}")
     console.print(f"[bold]Topics:[/bold] {len(profile.topics)} area(s)")
     for group, subs in profile.topics.items():
@@ -244,7 +250,7 @@ def _offer_interest_refinement(profile: Profile) -> None:
 
     try:
         with console.status("[bold green]Refining your interest paragraph..."):
-            new_interest = refine_interest(profile, model=cfg.llm.model)
+            new_interest = refine_interest(profile, llm_config=cfg.llm)
     except Exception:
         return
 

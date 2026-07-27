@@ -177,7 +177,7 @@ class TestInterestRefinement:
 
         fake = FakeReviewQuestionary([True, "Liked it", "transformers", True])
         monkeypatch.setattr("arxgent.cli.questionary", fake)
-        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, model: "Interest in transformer architectures")
+        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, llm_config: "Interest in transformer architectures")
 
         result = runner.invoke(cli, ["review"])
         assert result.exit_code == 0
@@ -193,7 +193,7 @@ class TestInterestRefinement:
 
         fake = FakeReviewQuestionary([True, "Liked it", "transformers"])
         monkeypatch.setattr("arxgent.cli.questionary", fake)
-        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, model: profile.interest)
+        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, llm_config: profile.interest)
 
         result = runner.invoke(cli, ["review"])
         assert result.exit_code == 0
@@ -208,7 +208,7 @@ class TestInterestRefinement:
 
         fake = FakeReviewQuestionary([True, "Liked it", "transformers", True])
         monkeypatch.setattr("arxgent.cli.questionary", fake)
-        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, model: "Interest in transformer architectures")
+        monkeypatch.setattr("arxgent.cli.refine_interest", lambda profile, llm_config: "Interest in transformer architectures")
 
         runner.invoke(cli, ["review"])
 

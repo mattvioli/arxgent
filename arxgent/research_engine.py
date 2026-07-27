@@ -11,6 +11,7 @@ import arxiv
 import litellm
 
 from arxgent.agents import Paper
+from arxgent.config import LLMConfig
 
 SEARCH_ARXIV_TOOL: dict[str, Any] = {
     "type": "function",
@@ -148,7 +149,7 @@ def _get_paper_details_impl(arxiv_id: str) -> dict[str, Any] | None:
     }
 
 
-def _summarize_paper_impl(arxiv_id: str, model: str) -> str:
+def _summarize_paper_impl(arxiv_id: str, llm_config: LLMConfig) -> str:
     paper_data = _get_paper_details_impl(arxiv_id)
     if paper_data is None:
         return "Paper not found."
@@ -170,8 +171,8 @@ def _summarize_paper_impl(arxiv_id: str, model: str) -> str:
         interest="the user's research interests"
     )
 
-    response = litellm.completion(
-        model=model,
+    kwargs: dict = dict(
+        model=llm_config.model,
         messages=[
             {"role": "system", "content": prompt},
             {
@@ -183,9 +184,15 @@ def _summarize_paper_impl(arxiv_id: str, model: str) -> str:
                 ),
             },
         ],
-        max_tokens=1024,
-        temperature=0.3,
+        max_tokens=llm_config.max_tokens,
+        temperature=llm_config.temperature,
     )
+    if llm_config.api_base:
+        kwargs["api_base"] = llm_config.api_base
+    if llm_config.api_key:
+        kwargs["api_key"] = llm_config.api_key
+
+    response = litellm.completion(**kwargs)
     summary = response.choices[0].message.content or ""
     summary = summary.replace("{arxiv_url}", paper.arxiv_url)
     summary = summary.replace("{pdf_url}", paper.pdf_url)
@@ -193,8 +200,8 @@ def _summarize_paper_impl(arxiv_id: str, model: str) -> str:
 
 
 class ResearchEngine:
-    def __init__(self, model: str = "gpt-4o-mini"):
-        self.model = model
+    def __init__(self, llm_config: LLMConfig | None = None):
+        self.llm_config = llm_config or LLMConfig()
         self.papers: dict[str, dict[str, Any]] = {}
 
         self.on_status: Callable[[str], None] | None = None
@@ -215,12 +222,18 @@ class ResearchEngine:
             if self.on_status:
                 self.on_status("thinking")
 
-            response = litellm.completion(
-                model=self.model,
+            kwargs: dict = dict(
+                model=self.llm_config.model,
                 messages=messages,
                 tools=TOOLS,
-                temperature=0.3,
+                temperature=self.llm_config.temperature,
             )
+            if self.llm_config.api_base:
+                kwargs["api_base"] = self.llm_config.api_base
+            if self.llm_config.api_key:
+                kwargs["api_key"] = self.llm_config.api_key
+
+            response = litellm.completion(**kwargs)
 
             msg = response.choices[0].message
 
@@ -255,7 +268,7 @@ class ResearchEngine:
                             self.on_papers_updated()
                 elif tool_name == "summarize_paper":
                     result = _summarize_paper_impl(
-                        arxiv_id=args["arxiv_id"], model=self.model
+                        arxiv_id=args["arxiv_id"], llm_config=self.llm_config
                     )
                 else:
                     result = f"Unknown tool: {tool_name}"

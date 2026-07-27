@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, patch
 
 
 from arxgent.agents import Paper, _build_query, _dates_to_arxiv, research_papers
+from arxgent.config import LLMConfig
 from arxgent.feedback import _extract_disliked_keywords, _extract_liked_authors, _extract_liked_keywords
 from arxgent.interest import refine_interest
 from arxgent.ranker import _extract_json, rank_papers_by_interest
@@ -253,13 +254,13 @@ class TestExtractJson:
 class TestRanker:
     def test_returns_all_if_no_interest(self) -> None:
         papers = [Paper(arxiv_id=str(i), title=f"Paper {i}", authors=[], published="2026-01-01", categories=[], abstract="a", arxiv_url="", pdf_url="") for i in range(3)]
-        result = rank_papers_by_interest(papers, interest="", model="gpt-4o-mini", top_k=3)
+        result = rank_papers_by_interest(papers, interest="", llm_config=LLMConfig(model="gpt-4o-mini"), top_k=3)
         assert len(result) == 3
         assert all(isinstance(r, tuple) and len(r) == 2 for r in result)
 
     def test_returns_all_if_fewer_than_top_k(self) -> None:
         papers = [Paper(arxiv_id="1", title="A", authors=[], published="2026-01-01", categories=[], abstract="a", arxiv_url="", pdf_url="")]
-        result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=5)
+        result = rank_papers_by_interest(papers, interest="ML", llm_config=LLMConfig(model="gpt-4o-mini"), top_k=5)
         assert len(result) == 1
         assert isinstance(result[0], tuple)
 
@@ -268,7 +269,7 @@ class TestRanker:
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "[2, 0, 4]"
         with patch("arxgent.ranker.litellm.completion", return_value=mock_response):
-            result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=3)
+            result = rank_papers_by_interest(papers, interest="ML", llm_config=LLMConfig(model="gpt-4o-mini"), top_k=3)
         assert len(result) == 3
         assert result[0][0].arxiv_id == "2"
         assert result[1][0].arxiv_id == "0"
@@ -280,7 +281,7 @@ class TestRanker:
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "not json at all"
         with patch("arxgent.ranker.litellm.completion", return_value=mock_response):
-            result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=3)
+            result = rank_papers_by_interest(papers, interest="ML", llm_config=LLMConfig(model="gpt-4o-mini"), top_k=3)
         assert [p[0].arxiv_id for p in result] == ["0", "1", "2"]
 
     def test_parses_object_format_with_reasons(self) -> None:
@@ -288,7 +289,7 @@ class TestRanker:
         mock_response = MagicMock()
         mock_response.choices[0].message.content = '[{"index": 1, "reason": "Best match for ML interest."}, {"index": 3, "reason": "Relevant methods."}]'
         with patch("arxgent.ranker.litellm.completion", return_value=mock_response):
-            result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=2)
+            result = rank_papers_by_interest(papers, interest="ML", llm_config=LLMConfig(model="gpt-4o-mini"), top_k=2)
         assert len(result) == 2
         assert result[0][0].arxiv_id == "1"
         assert result[1][0].arxiv_id == "3"
@@ -300,7 +301,7 @@ class TestRanker:
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "[3]"
         with patch("arxgent.ranker.litellm.completion", return_value=mock_response):
-            result = rank_papers_by_interest(papers, interest="ML", model="gpt-4o-mini", top_k=3)
+            result = rank_papers_by_interest(papers, interest="ML", llm_config=LLMConfig(model="gpt-4o-mini"), top_k=3)
         assert len(result) == 3
         assert result[0][0].arxiv_id == "3"
 
@@ -308,7 +309,7 @@ class TestRanker:
 class TestRefineInterest:
     def test_returns_current_if_no_feedback(self) -> None:
         profile = Profile(interest="machine learning")
-        result = refine_interest(profile, model="gpt-4o-mini")
+        result = refine_interest(profile, llm_config=LLMConfig(model="gpt-4o-mini"))
         assert result == "machine learning"
 
     def test_calls_litellm_with_context(self) -> None:
@@ -321,7 +322,7 @@ class TestRefineInterest:
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "Interest in transformer architectures"
         with patch("arxgent.interest.litellm.completion", return_value=mock_response):
-            result = refine_interest(profile, model="gpt-4o-mini")
+            result = refine_interest(profile, llm_config=LLMConfig(model="gpt-4o-mini"))
         assert "transformer" in result
 
     def test_uses_current_interest_as_fallback_on_empty_llm(self) -> None:
@@ -334,7 +335,7 @@ class TestRefineInterest:
         mock_response = MagicMock()
         mock_response.choices[0].message.content = ""
         with patch("arxgent.interest.litellm.completion", return_value=mock_response):
-            result = refine_interest(profile, model="gpt-4o-mini")
+            result = refine_interest(profile, llm_config=LLMConfig(model="gpt-4o-mini"))
         assert result == "nlp"
 
     def test_excludes_disliked_context(self) -> None:
@@ -348,7 +349,7 @@ class TestRefineInterest:
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "Interest in LLMs, not RL"
         with patch("arxgent.interest.litellm.completion", return_value=mock_response):
-            result = refine_interest(profile, model="gpt-4o-mini")
+            result = refine_interest(profile, llm_config=LLMConfig(model="gpt-4o-mini"))
         assert "LLM" in result
 
     def test_liked_papers_param_overrides_history(self) -> None:
@@ -356,7 +357,7 @@ class TestRefineInterest:
         mock_response = MagicMock()
         mock_response.choices[0].message.content = "Focus on computer vision"
         with patch("arxgent.interest.litellm.completion", return_value=mock_response):
-            result = refine_interest(profile, model="gpt-4o-mini", liked_papers=[("ViT Paper", "vision transformers")])
+            result = refine_interest(profile, llm_config=LLMConfig(model="gpt-4o-mini"), liked_papers=[("ViT Paper", "vision transformers")])
         assert "computer vision" in result
 
 
@@ -383,7 +384,7 @@ class TestSummarizer:
         )
 
         with patch("arxgent.summarizer.litellm.completion", return_value=mock_response):
-            summary = summarize_paper(paper, profile, model="gpt-4o-mini")
+            summary = summarize_paper(paper, profile, llm_config=LLMConfig(model="gpt-4o-mini"))
 
         assert "**Overview:**" in summary
         assert "**Key contribution:**" in summary
@@ -407,6 +408,6 @@ class TestSummarizer:
         mock_response.choices[0].message.content = None
 
         with patch("arxgent.summarizer.litellm.completion", return_value=mock_response):
-            summary = summarize_paper(paper, profile, model="gpt-4o-mini")
+            summary = summarize_paper(paper, profile, llm_config=LLMConfig(model="gpt-4o-mini"))
 
         assert summary == ""

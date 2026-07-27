@@ -6,6 +6,7 @@ os.environ["LITELLM_LOG"] = "ERROR"
 
 import litellm
 
+from arxgent.config import LLMConfig
 from arxgent.feedback import _extract_disliked_keywords, _extract_liked_authors, _extract_liked_keywords
 from arxgent.profile import Profile
 
@@ -23,7 +24,7 @@ The new interest should incorporate:
 Return ONLY the new interest paragraph — no explanation, no prefix, no formatting."""
 
 
-def refine_interest(profile: Profile, model: str, liked_papers: list[tuple[str, str]] | None = None) -> str:
+def refine_interest(profile: Profile, llm_config: LLMConfig, liked_papers: list[tuple[str, str]] | None = None) -> str:
     """Generate a refined interest paragraph based on feedback history.
 
     Args:
@@ -63,15 +64,21 @@ def refine_interest(profile: Profile, model: str, liked_papers: list[tuple[str, 
 
     context = "\n".join(context_parts)
 
-    response = litellm.completion(
-        model=model,
+    kwargs: dict = dict(
+        model=llm_config.model,
         messages=[
             {"role": "system", "content": REFINE_INTEREST_PROMPT},
             {"role": "user", "content": context},
         ],
-        max_tokens=300,
-        temperature=0.5,
+        max_tokens=llm_config.max_tokens,
+        temperature=llm_config.temperature,
     )
+    if llm_config.api_base:
+        kwargs["api_base"] = llm_config.api_base
+    if llm_config.api_key:
+        kwargs["api_key"] = llm_config.api_key
+
+    response = litellm.completion(**kwargs)
 
     new_interest = (response.choices[0].message.content or "").strip()
     return new_interest if new_interest else profile.interest
