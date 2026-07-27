@@ -77,6 +77,9 @@ class PaperPanel(VerticalScroll):
 
 
 class ChatLog(RichLog):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, wrap=True, **kwargs)
+    
     def on_mount(self) -> None:
         self.write(
             Text(
